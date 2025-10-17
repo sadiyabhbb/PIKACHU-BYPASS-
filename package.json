@@ -1,0 +1,13 @@
+{
+  "name": "pikachu-automation-node",
+  "version": "1.0.0",
+  "description": "Pikachu Tools automation using Node.js and Selenium.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "selenium-webdriver": "^4.21.0"
+  }
+}
