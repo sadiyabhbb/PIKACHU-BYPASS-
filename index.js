@@ -9,7 +9,7 @@ const chrome = require('selenium-webdriver/chrome');
 // --- ১. প্রাথমিক কনফিগারেশন ---
 const PORT = process.env.PORT || 3000;
 const LOGIN_URL = "https://www.pikachutools.my.id/user/login";
-const TOOL_PAGE_URL = "https://pikachutools.my.id/";
+const TOOL_PAGE_URL = "https://pikachutools.my.id/user";
 const YOUR_EMAIL = process.env.PIKACHU_EMAIL;
 const YOUR_PASSWORD = process.env.PIKACHU_PASSWORD;
 
