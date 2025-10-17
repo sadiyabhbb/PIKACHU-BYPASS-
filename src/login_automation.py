@@ -1,9 +1,8 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options # <--- নতুন ইম্পোর্ট
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 import os
 from dotenv import load_dotenv
 import time
@@ -13,21 +12,21 @@ load_dotenv()
 
 # --- ১. প্রাথমিক কনফিগারেশন ---
 LOGIN_URL = "https://www.pikachutools.my.id/user/login"
-# লগইন সফল হওয়ার পর যে টুল পেজে যাবে (HTML দেখে এটিই মূল ইউআরএল মনে হচ্ছে)
 TOOL_PAGE_URL = "https://pikachutools.my.id/" 
 YOUR_EMAIL = os.getenv("PIKACHU_EMAIL") 
 YOUR_PASSWORD = os.getenv("PIKACHU_PASSWORD") 
 
-# --- ২. লগইন ফর্ম লোকেটর ---
+# --- ২. লোকেটর (আগের মতই থাকবে) ---
 EMAIL_FIELD_LOCATOR = (By.NAME, "email") 
 PASSWORD_FIELD_LOCATOR = (By.NAME, "password") 
 LOGIN_BUTTON_LOCATOR = (By.XPATH, "/html/body/div/div/div[2]/div/section/div/div/div/div/div[2]/div/div/div/form/div/button") 
-
-# --- ৩. টুল পেজের নতুন লোকেটর (আপনার HTML অনুযায়ী আপডেট করা হয়েছে) ---
-NUMBER_INPUT_LOCATOR = (By.NAME, "number")       # <input type="text" name="number">
-AMOUNT_INPUT_LOCATOR = (By.NAME, "amount")       # <input type="number" name="amount">
-# Start বাটনটি একটি submit বাটন, তাই আমরা তার CSS Selector ব্যবহার করব
+NUMBER_INPUT_LOCATOR = (By.NAME, "number")       
+AMOUNT_INPUT_LOCATOR = (By.NAME, "amount")       
 START_BUTTON_LOCATOR = (By.CSS_SELECTOR, "button[type='submit']") 
+
+# --- ৩. Termux কনফিগারেশন ---
+# Termux-এ Chromium-এর এক্সিকিউটেবল পাথ। যদি pkg install chromium ব্যবহার করেন, তবে এটিই সাধারণত পাথ হয়।
+CHROMIUM_EXECUTABLE_PATH = "chromium" 
 
 
 def run_pikachu_tool(target_number: str, target_amount: int):
@@ -39,13 +38,22 @@ def run_pikachu_tool(target_number: str, target_amount: int):
         return
 
     print(f"--- Starting Automation for Number: {target_number}, Amount: {target_amount} ---")
+    
+    # --- Chrome Options সেটআপ (Headless মোড) ---
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")              # Termux-এ ব্রাউজার দৃশ্যমান হবে না
+    chrome_options.add_argument("--no-sandbox")            # Termux-এর জন্য প্রয়োজনীয়
+    chrome_options.add_argument("--disable-dev-shm-usage") # মেমরি ব্যবহারের জন্য প্রয়োজনীয়
+    
     driver = None
     try:
-        service = Service(ChromeDriverManager().install())
-        driver = webdriver.Chrome(service=service)
-        driver.maximize_window()
+        # WebDriver ইনস্ট্যান্স তৈরি: Termux-এ ব্রাউজার পাথ এবং অপশন ব্যবহার করা হয়
+        driver = webdriver.Chrome(
+            executable_path=CHROMIUM_EXECUTABLE_PATH,
+            options=chrome_options
+        )
         
-        # --- লগইন প্রক্রিয়া (১ম ধাপ) ---
+        # --- লগইন প্রক্রিয়া ও টাস্ক এক্সিকিউশন (বাকি কোড একই থাকবে) ---
         driver.get(LOGIN_URL)
         wait = WebDriverWait(driver, 20)
 
@@ -58,45 +66,34 @@ def run_pikachu_tool(target_number: str, target_amount: int):
         login_button = driver.find_element(*LOGIN_BUTTON_LOCATOR)
         login_button.click()
 
-        # লগইন সফল হওয়ার জন্য অপেক্ষা (২য় ধাপ)
         wait.until(EC.url_changes(LOGIN_URL))
         time.sleep(3) 
 
-        # যাচাই করা লগইন সফল হয়েছে কিনা
         if LOGIN_URL in driver.current_url:
             print("\nLogin Failed! Check credentials or website changes.")
             return
 
         print("\nLogin Successful. Navigating to Tool Page...")
         
-        # --- টুল পেজে নেভিগেট করা (৩য় ধাপ) ---
         driver.get(TOOL_PAGE_URL) 
         time.sleep(3) 
         
-        # --- কমান্ড/টাস্ক এক্সিকিউশন (৪র্থ ধাপ) ---
-        
-        # ১. নাম্বার ইনপুট করা
         print(f"Inputting Number: {target_number}...")
         number_field = wait.until(EC.presence_of_element_located(NUMBER_INPUT_LOCATOR))
         number_field.clear() 
         number_field.send_keys(target_number)
 
-        # ২. অ্যামাউন্ট ইনপুট করা
         print(f"Inputting Amount: {target_amount}...")
         amount_field = driver.find_element(*AMOUNT_INPUT_LOCATOR)
         amount_field.clear()
         amount_field.send_keys(str(target_amount))
 
-        # ৩. স্টার্ট বাটনে ক্লিক করা
-        # এখানে Start বাটনটি ফর্ম সাবমিট করবে
         print("Clicking 'START' Button...")
         start_button = driver.find_element(*START_BUTTON_LOCATOR)
         start_button.click()
 
         print("\nTool execution initiated. Waiting for result...")
-        time.sleep(15) # কমান্ড শেষ হওয়ার জন্য অপেক্ষা
-
-        # যদি কোনো Success/Error মেসেজ আসে, তা এখানে চেক করতে পারেন
+        time.sleep(15) 
         
         print("Automation task completed successfully.")
 
@@ -107,12 +104,8 @@ def run_pikachu_tool(target_number: str, target_amount: int):
             driver.quit()
             print("Browser closed.")
 
-# --- ফাংশন কল করার উদাহরণ (আপনার API এর মতো) ---
+# --- ফাংশন কল করার উদাহরণ ---
 if __name__ == "__main__":
-    
-    # টেস্টিং এর জন্য উদাহরণ মান
-    test_number = "01314546986"  
+    test_number = "01XXXXXXXXXX"  
     test_amount = 5000 
-    
-    # অটোমেশন চালান
-    run_pikachu_tool(test_number, test_amount) 
+    run_pikachu_tool(test_number, test_amount)
