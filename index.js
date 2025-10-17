@@ -13,10 +13,9 @@ const TOOL_PAGE_URL = "https://pikachutools.my.id/";
 const YOUR_EMAIL = process.env.PIKACHU_EMAIL;
 const YOUR_PASSWORD = process.env.PIKACHU_PASSWORD;
 
-// --- ২. লোকেটর (পূর্বের মতোই) ---
+// --- ২. লোকেটর ---
 const LOCATOR = {
     EMAIL_FIELD: By.name('email'),
-    // ... অন্যান্য লোকেটর অপরিবর্তিত ...
     PASSWORD_FIELD: By.name('password'),
     LOGIN_BUTTON: By.xpath('/html/body/div/div/div[2]/div/section/div/div/div/div/div[2]/div/div/div/form/div/button'),
     NUMBER_INPUT: By.name('number'),
@@ -24,8 +23,9 @@ const LOCATOR = {
     START_BUTTON: By.css("button[type='submit']"),
 };
 
-// ... runPikachuTool ফাংশনটি আগের মতোই থাকবে ...
-
+/**
+ * [CORE FUNCTION] Selenium Automation টাস্ক। এটি Headless Chrome এ চলবে।
+ */
 async function runPikachuTool(targetNumber, targetAmount) {
     if (!YOUR_EMAIL || !YOUR_PASSWORD) {
         console.error(`[JOB FAIL - ${targetNumber}] Credentials not set.`);
@@ -34,10 +34,10 @@ async function runPikachuTool(targetNumber, targetAmount) {
 
     console.log(`[JOB START] Initializing for Number: ${targetNumber}, Amount: ${targetAmount}`);
 
-    // --- Chrome Options সেটআপ (Headless মোড) ---
+    // --- Chrome Options সেটআপ (Render/Headless মোড) ---
     const options = new chrome.Options();
     options.addArguments('--headless');
-    options.addArguments('--no-sandbox');
+    options.addArguments('--no-sandbox'); // Render এর জন্য অপরিহার্য
     options.addArguments('--disable-dev-shm-usage');
     options.addArguments('--disable-gpu'); 
     options.addArguments('--window-size=1920,1080');
@@ -51,13 +51,15 @@ async function runPikachuTool(targetNumber, targetAmount) {
 
         // --- লগইন প্রক্রিয়া ---
         await driver.get(LOGIN_URL);
-        const waitTime = 20000; 
+        // Time Out সমস্যা এড়াতে অপেক্ষা করার সময় 20s থেকে 40s করা হলো
+        const waitTime = 40000; 
 
         await driver.wait(until.elementLocated(LOCATOR.EMAIL_FIELD), waitTime);
         await driver.findElement(LOCATOR.EMAIL_FIELD).sendKeys(YOUR_EMAIL);
         await driver.findElement(LOCATOR.PASSWORD_FIELD).sendKeys(YOUR_PASSWORD);
         await driver.findElement(LOCATOR.LOGIN_BUTTON).click();
         
+        // লগইন সফল হওয়ার জন্য অপেক্ষা
         await driver.wait(until.urlIs(TOOL_PAGE_URL), waitTime);
         console.log(`[JOB - ${targetNumber}] Login Successful. Starting task...`);
 
@@ -72,6 +74,7 @@ async function runPikachuTool(targetNumber, targetAmount) {
         await driver.findElement(LOCATOR.START_BUTTON).click();
         console.log(`[JOB - ${targetNumber}] Clicked 'START' Button. Waiting for completion...`);
 
+        // টুলের কাজ শেষ হওয়ার জন্য অপেক্ষা
         await driver.sleep(15000); 
         
         console.log(`[JOB END SUCCESS] Task completed for ${targetNumber}.`);
@@ -87,7 +90,6 @@ async function runPikachuTool(targetNumber, targetAmount) {
     }
 }
 
-
 // --- ৩. Express Web Service সেটআপ ---
 const app = express();
 app.use(bodyParser.json());
@@ -100,8 +102,9 @@ app.get('/', (req, res) => {
     });
 });
 
-// 🔑 নতুন GET API রুট (URL Path Parameter ব্যবহার করে) 🔑
+// 🔑 আপনার কাঙ্খিত GET API রুট: URL Path Parameter ব্যবহার করে 🔑
 app.get('/run/:number/:amount', (req, res) => {
+    // URL থেকে প্যারামিটার গ্রহণ
     const number = req.params.number;
     const amount = req.params.amount;
     
@@ -116,7 +119,7 @@ app.get('/run/:number/:amount', (req, res) => {
     const targetNumber = String(number);
     const targetAmount = Number(amount);
     
-    // টাস্কটিকে ব্যাকগ্রাউন্ডে চালানো
+    // Asynchronous Execution: টাস্কটিকে ব্যাকগ্রাউন্ডে চালানো এবং ক্লায়েন্টকে দ্রুত সাড়া দেওয়া।
     runPikachuTool(targetNumber, targetAmount)
         .then(result => {
             console.log(`Job final result log:`, result);
@@ -125,14 +128,13 @@ app.get('/run/:number/:amount', (req, res) => {
             console.error(`Job execution promise error:`, err);
         });
 
-    // ক্লায়েন্টকে সাথে সাথে সাড়া দেওয়া
+    // ক্লায়েন্টকে সাথে সাথে সাড়া দেওয়া (202 Accepted)
     res.status(202).send({ 
         status: 'accepted', 
-        message: 'Automation job accepted and started in the background (via GET method). Check server logs for completion status.',
+        message: 'Automation job accepted and started in the background. Check server logs for completion status.',
         jobDetails: { number: targetNumber, amount: targetAmount }
     });
 });
-
 
 // সার্ভার শুরু করা
 app.listen(PORT, () => {
