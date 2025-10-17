@@ -1,12 +1,15 @@
 // index.js
 
 require('dotenv').config();
+const express = require('express');
+const bodyParser = require('body-parser');
 const { Builder, By, until } = require('selenium-webdriver');
 const chrome = require('selenium-webdriver/chrome');
 
 // --- ১. প্রাথমিক কনফিগারেশন ---
-const LOGIN_URL = process.env.LOGIN_URL || "https://www.pikachutools.my.id/user/login";
-const TOOL_PAGE_URL = process.env.TOOL_PAGE_URL || "https://pikachutools.my.id/";
+const PORT = process.env.PORT || 3000;
+const LOGIN_URL = "https://www.pikachutools.my.id/user/login";
+const TOOL_PAGE_URL = "https://pikachutools.my.id/";
 const YOUR_EMAIL = process.env.PIKACHU_EMAIL;
 const YOUR_PASSWORD = process.env.PIKACHU_PASSWORD;
 
@@ -21,34 +24,25 @@ const LOCATOR = {
 };
 
 /**
- * লগইন করে টুল পেজে নির্দিষ্ট নাম্বার ও অ্যামাউন্ট দিয়ে START কমান্ড এক্সিকিউট করে।
- * @param {string} targetNumber 
- * @param {number} targetAmount 
+ * Selenium Automation ফাংশন
  */
 async function runPikachuTool(targetNumber, targetAmount) {
     if (!YOUR_EMAIL || !YOUR_PASSWORD) {
-        console.error("ERROR: PIKACHU_EMAIL or PIKACHU_PASSWORD not set in .env file.");
-        return;
+        return { status: 'error', message: 'Credentials not set in .env file.' };
     }
 
-    console.log(`--- Starting Automation for Number: ${targetNumber}, Amount: ${targetAmount} ---`);
+    console.log(`[JOB START] Number: ${targetNumber}, Amount: ${targetAmount}`);
 
     // --- Chrome Options সেটআপ (Render/Headless মোড) ---
-    // Render-এ Headless এবং No-Sandbox অপরিহার্য।
     const options = new chrome.Options();
     options.addArguments('--headless');
     options.addArguments('--no-sandbox');
     options.addArguments('--disable-dev-shm-usage');
-    options.addArguments('--disable-gpu'); // GPU ডিসেবল করা
+    options.addArguments('--disable-gpu'); 
     options.addArguments('--window-size=1920,1080');
-    
-    // Render-এ Chromium-এর এক্সিকিউটেবল পাথ স্বয়ংক্রিয়ভাবে ডিটেক্ট না হলে, 
-    // আপনাকে Render-এর এনভায়রনমেন্ট ভেরিয়েবল বা ফিক্সড পাথ ব্যবহার করতে হতে পারে।
-    // options.setChromeBinaryPath('/usr/bin/google-chrome'); 
     
     let driver;
     try {
-        // WebDriver ইনস্ট্যান্স তৈরি: Render/Cloud এনভায়রনমেন্টের জন্য Builder ব্যবহার
         driver = await new Builder()
             .forBrowser('chrome')
             .setChromeOptions(options)
@@ -56,62 +50,81 @@ async function runPikachuTool(targetNumber, targetAmount) {
 
         // --- লগইন প্রক্রিয়া ---
         await driver.get(LOGIN_URL);
-        const wait = 20000; // 20 সেকেন্ড
+        const waitTime = 20000; 
 
-        // ইমেল
-        await driver.wait(until.elementLocated(LOCATOR.EMAIL_FIELD), wait);
+        await driver.wait(until.elementLocated(LOCATOR.EMAIL_FIELD), waitTime);
         await driver.findElement(LOCATOR.EMAIL_FIELD).sendKeys(YOUR_EMAIL);
-
-        // পাসওয়ার্ড
         await driver.findElement(LOCATOR.PASSWORD_FIELD).sendKeys(YOUR_PASSWORD);
-
-        // লগইন বাটন ক্লিক
         await driver.findElement(LOCATOR.LOGIN_BUTTON).click();
-        console.log("Login form submitted.");
         
         // লগইন সফল হওয়ার জন্য অপেক্ষা
-        await driver.wait(until.urlIs(TOOL_PAGE_URL), wait);
-        console.log("Login Successful. Navigating to Tool Page...");
+        await driver.wait(until.urlIs(TOOL_PAGE_URL), waitTime);
+        console.log("Login Successful. Starting task...");
 
-        // --- টুল পেজে টাস্ক এক্সিকিউশন ---
-        
-        // ১. নাম্বার ইনপুট করা
-        await driver.wait(until.elementLocated(LOCATOR.NUMBER_INPUT), wait);
-        const numberField = await driver.findElement(LOCATOR.NUMBER_INPUT);
-        await numberField.clear(); 
-        await numberField.sendKeys(targetNumber);
-        console.log(`Number inputted: ${targetNumber}`);
+        // --- টাস্ক এক্সিকিউশন ---
+        await driver.wait(until.elementLocated(LOCATOR.NUMBER_INPUT), waitTime);
+        await driver.findElement(LOCATOR.NUMBER_INPUT).clear(); 
+        await driver.findElement(LOCATOR.NUMBER_INPUT).sendKeys(targetNumber);
 
-        // ২. অ্যামাউন্ট ইনপুট করা
-        const amountField = await driver.findElement(LOCATOR.AMOUNT_INPUT);
-        await amountField.clear();
-        await amountField.sendKeys(String(targetAmount));
-        console.log(`Amount inputted: ${targetAmount}`);
+        await driver.findElement(LOCATOR.AMOUNT_INPUT).clear();
+        await driver.findElement(LOCATOR.AMOUNT_INPUT).sendKeys(String(targetAmount));
 
-        // ৩. স্টার্ট বাটনে ক্লিক করা
         await driver.findElement(LOCATOR.START_BUTTON).click();
-        console.log("Clicked 'START' Button. Tool execution initiated.");
+        console.log("Clicked 'START' Button.");
 
         // ফলাফল দেখার জন্য অপেক্ষা
         await driver.sleep(15000); 
         
-        console.log("Automation task completed successfully.");
+        console.log("[JOB END] Task completed successfully.");
+        return { status: 'success', message: 'Automation task executed successfully.', number: targetNumber, amount: targetAmount };
 
     } catch (error) {
-        console.error(`\nAn error occurred during automation: ${error.message}`);
+        console.error(`[JOB FAIL] Error: ${error.message}`);
+        return { status: 'error', message: `Automation failed: ${error.message}` };
     } finally {
         if (driver) {
             await driver.quit();
-            console.log("Browser closed.");
         }
     }
 }
 
-// --- ফাংশন কল করার উদাহরণ (আপনার API এর মতো) ---
-(async () => {
-    // আপনি যখনই এই স্ক্রিপ্টটি চালান, তখন এই প্যারামিটারগুলো ব্যবহার হবে
-    const testNumber = "01XXXXXXXXXX";
-    const testAmount = 5000;
-    
-    await runPikachuTool(testNumber, testAmount);
-})();
+// --- ৩. Express Web Service সেটআপ ---
+const app = express();
+app.use(bodyParser.json());
+
+// স্বাস্থ্য পরীক্ষা (Health Check) রুট
+app.get('/', (req, res) => {
+    res.status(200).send({ 
+        status: 'ok', 
+        message: `Pikachu Automation Service is running on port ${PORT}. Use POST /run to trigger automation.` 
+    });
+});
+
+// মূল API রুট
+app.post('/run', async (req, res) => {
+    const { number, amount } = req.body;
+
+    if (!number || !amount) {
+        return res.status(400).send({ 
+            status: 'error', 
+            message: 'Missing required parameters: number and amount in request body.' 
+        });
+    }
+
+    try {
+        // টাস্কটিকে ব্যাকগ্রাউন্ডে চালানো
+        const result = await runPikachuTool(String(number), Number(amount));
+        
+        // ক্লায়েন্টকে দ্রুত সাড়া দেওয়া
+        res.status(result.status === 'success' ? 200 : 500).send(result);
+        
+    } catch (e) {
+        console.error(`Unhandled error: ${e.message}`);
+        res.status(500).send({ status: 'error', message: 'Internal server error during job execution.' });
+    }
+});
+
+// সার্ভার শুরু করা
+app.listen(PORT, () => {
+    console.log(`Web Service running on port ${PORT}`);
+});
