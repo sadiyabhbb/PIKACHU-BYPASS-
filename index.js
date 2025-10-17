@@ -13,9 +13,10 @@ const TOOL_PAGE_URL = "https://pikachutools.my.id/";
 const YOUR_EMAIL = process.env.PIKACHU_EMAIL;
 const YOUR_PASSWORD = process.env.PIKACHU_PASSWORD;
 
-// --- ২. লোকেটর ---
+// --- ২. লোকেটর (পূর্বের মতোই) ---
 const LOCATOR = {
     EMAIL_FIELD: By.name('email'),
+    // ... অন্যান্য লোকেটর অপরিবর্তিত ...
     PASSWORD_FIELD: By.name('password'),
     LOGIN_BUTTON: By.xpath('/html/body/div/div/div[2]/div/section/div/div/div/div/div[2]/div/div/div/form/div/button'),
     NUMBER_INPUT: By.name('number'),
@@ -23,17 +24,17 @@ const LOCATOR = {
     START_BUTTON: By.css("button[type='submit']"),
 };
 
-/**
- * Selenium Automation ফাংশন
- */
+// ... runPikachuTool ফাংশনটি আগের মতোই থাকবে ...
+
 async function runPikachuTool(targetNumber, targetAmount) {
     if (!YOUR_EMAIL || !YOUR_PASSWORD) {
-        return { status: 'error', message: 'Credentials not set in .env file.' };
+        console.error(`[JOB FAIL - ${targetNumber}] Credentials not set.`);
+        return;
     }
 
-    console.log(`[JOB START] Number: ${targetNumber}, Amount: ${targetAmount}`);
+    console.log(`[JOB START] Initializing for Number: ${targetNumber}, Amount: ${targetAmount}`);
 
-    // --- Chrome Options সেটআপ (Render/Headless মোড) ---
+    // --- Chrome Options সেটআপ (Headless মোড) ---
     const options = new chrome.Options();
     options.addArguments('--headless');
     options.addArguments('--no-sandbox');
@@ -57,9 +58,8 @@ async function runPikachuTool(targetNumber, targetAmount) {
         await driver.findElement(LOCATOR.PASSWORD_FIELD).sendKeys(YOUR_PASSWORD);
         await driver.findElement(LOCATOR.LOGIN_BUTTON).click();
         
-        // লগইন সফল হওয়ার জন্য অপেক্ষা
         await driver.wait(until.urlIs(TOOL_PAGE_URL), waitTime);
-        console.log("Login Successful. Starting task...");
+        console.log(`[JOB - ${targetNumber}] Login Successful. Starting task...`);
 
         // --- টাস্ক এক্সিকিউশন ---
         await driver.wait(until.elementLocated(LOCATOR.NUMBER_INPUT), waitTime);
@@ -70,17 +70,16 @@ async function runPikachuTool(targetNumber, targetAmount) {
         await driver.findElement(LOCATOR.AMOUNT_INPUT).sendKeys(String(targetAmount));
 
         await driver.findElement(LOCATOR.START_BUTTON).click();
-        console.log("Clicked 'START' Button.");
+        console.log(`[JOB - ${targetNumber}] Clicked 'START' Button. Waiting for completion...`);
 
-        // ফলাফল দেখার জন্য অপেক্ষা
         await driver.sleep(15000); 
         
-        console.log("[JOB END] Task completed successfully.");
-        return { status: 'success', message: 'Automation task executed successfully.', number: targetNumber, amount: targetAmount };
+        console.log(`[JOB END SUCCESS] Task completed for ${targetNumber}.`);
+        return { status: 'success', number: targetNumber };
 
     } catch (error) {
-        console.error(`[JOB FAIL] Error: ${error.message}`);
-        return { status: 'error', message: `Automation failed: ${error.message}` };
+        console.error(`[JOB END FAIL] Error for ${targetNumber}: ${error.message}`);
+        return { status: 'error', number: targetNumber, error: error.message };
     } finally {
         if (driver) {
             await driver.quit();
@@ -88,41 +87,52 @@ async function runPikachuTool(targetNumber, targetAmount) {
     }
 }
 
+
 // --- ৩. Express Web Service সেটআপ ---
 const app = express();
 app.use(bodyParser.json());
 
-// স্বাস্থ্য পরীক্ষা (Health Check) রুট
+// স্বাস্থ্য পরীক্ষা রুট
 app.get('/', (req, res) => {
     res.status(200).send({ 
         status: 'ok', 
-        message: `Pikachu Automation Service is running on port ${PORT}. Use POST /run to trigger automation.` 
+        message: `Pikachu Automation Service is running. Use GET /run/:number/:amount to trigger.` 
     });
 });
 
-// মূল API রুট
-app.post('/run', async (req, res) => {
-    const { number, amount } = req.body;
-
+// 🔑 নতুন GET API রুট (URL Path Parameter ব্যবহার করে) 🔑
+app.get('/run/:number/:amount', (req, res) => {
+    const number = req.params.number;
+    const amount = req.params.amount;
+    
+    // ইনপুট যাচাই
     if (!number || !amount) {
         return res.status(400).send({ 
             status: 'error', 
-            message: 'Missing required parameters: number and amount in request body.' 
+            message: 'Missing required parameters in URL path: /run/:number/:amount' 
         });
     }
+    
+    const targetNumber = String(number);
+    const targetAmount = Number(amount);
+    
+    // টাস্কটিকে ব্যাকগ্রাউন্ডে চালানো
+    runPikachuTool(targetNumber, targetAmount)
+        .then(result => {
+            console.log(`Job final result log:`, result);
+        })
+        .catch(err => {
+            console.error(`Job execution promise error:`, err);
+        });
 
-    try {
-        // টাস্কটিকে ব্যাকগ্রাউন্ডে চালানো
-        const result = await runPikachuTool(String(number), Number(amount));
-        
-        // ক্লায়েন্টকে দ্রুত সাড়া দেওয়া
-        res.status(result.status === 'success' ? 200 : 500).send(result);
-        
-    } catch (e) {
-        console.error(`Unhandled error: ${e.message}`);
-        res.status(500).send({ status: 'error', message: 'Internal server error during job execution.' });
-    }
+    // ক্লায়েন্টকে সাথে সাথে সাড়া দেওয়া
+    res.status(202).send({ 
+        status: 'accepted', 
+        message: 'Automation job accepted and started in the background (via GET method). Check server logs for completion status.',
+        jobDetails: { number: targetNumber, amount: targetAmount }
+    });
 });
+
 
 // সার্ভার শুরু করা
 app.listen(PORT, () => {
