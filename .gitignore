@@ -1,0 +1,5 @@
+# Python environment
+__pycache__/
+*.pyc
+venv/
+.env  # ব্যক্তিগত ক্রেডেনশিয়াল ফাইল গিট ইগনোর করবে
