@@ -1,6 +1,6 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options # <--- নতুন ইম্পোর্ট
+from selenium.webdriver.chrome.options import Options 
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import os
@@ -12,11 +12,13 @@ load_dotenv()
 
 # --- ১. প্রাথমিক কনফিগারেশন ---
 LOGIN_URL = "https://www.pikachutools.my.id/user/login"
+# লগইন সফল হওয়ার পর যে টুল পেজে যাবে
 TOOL_PAGE_URL = "https://pikachutools.my.id/" 
+# .env ফাইল থেকে ক্রেডেনশিয়াল লোড করা
 YOUR_EMAIL = os.getenv("PIKACHU_EMAIL") 
 YOUR_PASSWORD = os.getenv("PIKACHU_PASSWORD") 
 
-# --- ২. লোকেটর (আগের মতই থাকবে) ---
+# --- ২. লোকেটর ---
 EMAIL_FIELD_LOCATOR = (By.NAME, "email") 
 PASSWORD_FIELD_LOCATOR = (By.NAME, "password") 
 LOGIN_BUTTON_LOCATOR = (By.XPATH, "/html/body/div/div/div[2]/div/section/div/div/div/div/div[2]/div/div/div/form/div/button") 
@@ -25,8 +27,8 @@ AMOUNT_INPUT_LOCATOR = (By.NAME, "amount")
 START_BUTTON_LOCATOR = (By.CSS_SELECTOR, "button[type='submit']") 
 
 # --- ৩. Termux কনফিগারেশন ---
-# Termux-এ Chromium-এর এক্সিকিউটেবল পাথ। যদি pkg install chromium ব্যবহার করেন, তবে এটিই সাধারণত পাথ হয়।
-CHROMIUM_EXECUTABLE_PATH = "chromium" 
+# pkg install chromedriver সফল হলে, এটিই এর ডিফল্ট এক্সিকিউটেবল নাম।
+CHROMIUM_EXECUTABLE_PATH = "chromedriver" 
 
 
 def run_pikachu_tool(target_number: str, target_amount: int):
@@ -47,13 +49,13 @@ def run_pikachu_tool(target_number: str, target_amount: int):
     
     driver = None
     try:
-        # WebDriver ইনস্ট্যান্স তৈরি: Termux-এ ব্রাউজার পাথ এবং অপশন ব্যবহার করা হয়
+        # WebDriver ইনস্ট্যান্স তৈরি: Termux-এ ম্যানুয়াল পাথ ব্যবহার
         driver = webdriver.Chrome(
             executable_path=CHROMIUM_EXECUTABLE_PATH,
             options=chrome_options
         )
         
-        # --- লগইন প্রক্রিয়া ও টাস্ক এক্সিকিউশন (বাকি কোড একই থাকবে) ---
+        # --- লগইন প্রক্রিয়া ---
         driver.get(LOGIN_URL)
         wait = WebDriverWait(driver, 20)
 
@@ -75,6 +77,7 @@ def run_pikachu_tool(target_number: str, target_amount: int):
 
         print("\nLogin Successful. Navigating to Tool Page...")
         
+        # --- টুল পেজে নেভিগেট ও টাস্ক এক্সিকিউশন ---
         driver.get(TOOL_PAGE_URL) 
         time.sleep(3) 
         
@@ -104,8 +107,10 @@ def run_pikachu_tool(target_number: str, target_amount: int):
             driver.quit()
             print("Browser closed.")
 
-# --- ফাংশন কল করার উদাহরণ ---
+# --- ফাংশন কল করার উদাহরণ (আপনার API এর মতো) ---
 if __name__ == "__main__":
+    # টেস্টিং এর জন্য আপনার কাঙ্খিত নাম্বার ও অ্যামাউন্ট দিন
     test_number = "01XXXXXXXXXX"  
     test_amount = 5000 
+    
     run_pikachu_tool(test_number, test_amount)
